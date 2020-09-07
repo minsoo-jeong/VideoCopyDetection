@@ -1,0 +1,3 @@
+numpy
+pymediainfo==4.2.1
+faiss-gpu

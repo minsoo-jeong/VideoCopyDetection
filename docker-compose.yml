@@ -1,0 +1,34 @@
+version: '2.3'
+
+services:
+  main:
+    container_name: "VideoCopyDetection"
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    runtime: nvidia
+    restart: always
+    env_file:
+      - "docker-compose-env/main.env"
+    volumes:
+      - type: volume
+        source: nfs_shared
+        target: /nfs_shared
+        volume:
+          nocopy: true
+      - "./:/workspace"
+    ports:
+      - "48000:8000"
+      - "46006:6006"
+      - "40022:22"
+    ipc: host
+    stdin_open: true
+    tty: true
+
+
+volumes:
+  nfs_shared:
+    driver_opts:
+      type: "nfs"
+      o: "addr=mldisk2.sogang.ac.kr,nolock,soft,rw"
+      device: ":/volume2/nfs_shared"
