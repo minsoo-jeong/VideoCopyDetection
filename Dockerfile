@@ -1,10 +1,9 @@
 FROM  pytorch/pytorch:1.5.1-cuda10.1-cudnn7-devel
 
 RUN apt-get update
-RUN apt-get  -y --no-install-recommends \
-    software-properties-common git wget python-pip apt-utils vim openssh-server \
-    python-pip python-dev libsm6 libxrender1
-RUN apt-get update && apt-get install ffmpeg
+RUN apt-get  install -y git vim openssh-server software-properties-common libmediainfo-dev
+RUN add-apt-repository -y ppa:jonathonf/ffmpeg-4
+RUN apt-get update && apt-get install -y ffmpeg
 
 
 RUN DEBIAN_FRONTEND="noninteractive" apt-get -y install tzdata

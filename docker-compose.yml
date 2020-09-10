@@ -8,8 +8,6 @@ services:
       dockerfile: Dockerfile
     runtime: nvidia
     restart: always
-    env_file:
-      - "docker-compose-env/main.env"
     volumes:
       - type: volume
         source: nfs_shared
