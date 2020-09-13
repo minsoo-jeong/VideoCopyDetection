@@ -7,6 +7,9 @@ from PIL import Image
 
 from nets.models import *
 from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
+from multiprocessing import Pool
+import os
 
 
 class ListDataset(Dataset):
@@ -93,15 +96,7 @@ def extract_frame_fingerprint(model, loader):
     return frame_fingerprints
 
 
-if __name__ == '__main__':
-    video = '/nfs_shared/MLVD/VCDB/videos/00274a923e13506819bd273c694d10cfa07ce1ec.flv'
-    decode_rate = 10
-    decode_size = 256
-    group_count = 4
-    cnn_model = MobileNet_AVG().cuda()
-    cnn_model = nn.DataParallel(cnn_model)
-    aggr_model = Segment_Maxpooling()
-
+def extract_segment_fingerprint(video, decode_rate, decode_size, transform, cnn_model,aggr_model,group_count):
     # parse video metadata
     meta = parse_metadata(video)
     print(meta)
@@ -111,11 +106,7 @@ if __name__ == '__main__':
     print(len(frames))
 
     # extract frame fingerprint
-    transform = trn.Compose([
-        trn.Resize((224, 224)),
-        trn.ToTensor(),
-        trn.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
+
     cnn_loader = DataLoader(ListDataset(frames, transform=transform), batch_size=64, shuffle=False, num_workers=4)
     frame_fingerprints = extract_frame_fingerprint(cnn_model, cnn_loader)
     print(frame_fingerprints.shape)
@@ -132,3 +123,57 @@ if __name__ == '__main__':
     print(frame_fingerprints.shape)
     segment_fingerprints = aggr_model(frame_fingerprints)
     print(segment_fingerprints.shape)
+
+    return segment_fingerprints
+
+
+
+def load(path):
+    _, ext = os.path.splitext(path)
+    if ext == '.npy':
+        feat = np.load(path)
+    elif ext == '.pth':
+        feat = torch.load(path)
+    else:
+        raise TypeError(f'feature extension {ext} isn\'t supported')
+
+    return feat
+
+
+def load_segment_fingerprint(base_path):
+    # base_path
+    # ../{dataset}-{decode_rate}-{cnn_extractor}-{group_count}-{aggr_model}/{video}.pth
+    # ex) vcdb-5-mobilenet_avg-shot-lstm/00274a.flv.pth
+
+    paths = [os.path.join(base_path, p) for p in os.listdir(base_path)]
+    pool = Pool()
+    bar = tqdm.tqdm(range(len(paths)), mininterval=1, ncols=150)
+    features = [pool.apply_async(load, args=[p], callback=lambda *a: bar.update()) for p in paths]
+    pool.close()
+    pool.join()
+    bar.close()
+
+    features = [f.get() for f in features]
+    length = [f.shape[0] for f in features]
+    start = np.cumsum([0] + length)
+    index = np.vstack([start[:-1], start[1:]]).reshape(-1, 2)
+    return np.concatenate(features), np.array(length), index
+
+
+if __name__ == '__main__':
+    video = '/nfs_shared/MLVD/VCDB/videos/00274a923e13506819bd273c694d10cfa07ce1ec.flv'
+    decode_rate = 10
+    decode_size = 256
+    group_count = 4
+    cnn_model = MobileNet_AVG().cuda()
+    cnn_model = nn.DataParallel(cnn_model)
+    aggr_model = Segment_Maxpooling()
+    transform = trn.Compose([
+        trn.Resize((224, 224)),
+        trn.ToTensor(),
+        trn.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+
+    extract_segment_fingerprint(video,decode_rate,decode_size,transform,cnn_model,aggr_model,group_count)
+
+
