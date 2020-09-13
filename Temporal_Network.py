@@ -16,6 +16,7 @@ class TN(object):
         # isdetect, next_time, next_rank, scores, count
         self.paths = np.zeros((*D.shape, 5), dtype=object)
 
+
     def find_linkable_node(self, t, r):
         v_id, f_id = self.index[t, r]
         time, rank = np.where((self.index[t + 1:t + 1 + self.TEMP_WND, :, 0] == v_id) &
@@ -25,13 +26,12 @@ class TN(object):
         return np.dstack((time + 1 + t, rank)).squeeze(0).tolist()
 
     def find_max_score_path(self, t, r):
-
         if self.paths[t, r, 0] != 1:
             nodes = self.find_linkable_node(t, r)
             paths = [[time, rank, *self.find_max_score_path(time, rank)] for time, rank in nodes]
             if len(paths) != 0:
-                path = max(paths, key=lambda x: x[-2] / x[-1])
-                # print(t,r,sorted(paths, key=lambda x: x[-2]/x[-1], reverse=True))
+                path = min(paths, key=lambda x: x[-2] / x[-1])
+                # path = sorted(paths, key=lambda x: x[-2] / x[-1])[0]
                 next_time, next_rank = path[0], path[1]
                 score = path[5] + self.dist[t, r]
                 count = path[6] + 1
