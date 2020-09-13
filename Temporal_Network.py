@@ -1,6 +1,8 @@
 import numpy as np
 import sys
+
 sys.setrecursionlimit(10000)
+
 
 class TN(object):
     def __init__(self, D, I, TEMP_WND=3, MIN_MATCH=3):
@@ -15,7 +17,6 @@ class TN(object):
 
         # isdetect, next_time, next_rank, scores, count
         self.paths = np.zeros((*D.shape, 5), dtype=object)
-
 
     def find_linkable_node(self, t, r):
         v_id, f_id = self.index[t, r]
@@ -112,3 +113,34 @@ class TN(object):
         # # sink = sorted(candidate, key=lambda x: x['score'])
         #
         # return sink
+
+
+if __name__ == '__main__':
+    import faiss
+
+    # load all features
+    db_features = np.arange(1, 10).reshape(-1, 1) / 10
+    db_features = np.repeat(db_features, 10, axis=1).astype(np.float32)
+    print(db_features)
+    # table => {db_features_idx : (video id, frame id) ...}
+    table = {n: (0, n) if n < 5 else (1, n - 5) for n, v in enumerate(db_features)}
+    mapping = np.vectorize(lambda x, table: table[x])
+
+    # extract query video features
+    query_video_features = db_features[:5, :]
+    print(query_video_features)
+
+    # search top k features per each query frames
+    l2index = faiss.IndexFlatL2(db_features.shape[1])
+    l2index.add(db_features)
+    D, I = l2index.search(query_video_features, k=9)
+    print(D)  # dist
+    print(I)  # index
+    print(mapping(I, table))
+    I_to_frame_index = np.dstack(mapping(I, table))  # index to (video id , frame id)
+
+    # find copy segment
+    temporal_network = TN(D, I_to_frame_index, 3, 3)
+    candidate = temporal_network.fit()
+    # [(video_id,[query],[reference],dist,count) ... ]
+    print(candidate)
